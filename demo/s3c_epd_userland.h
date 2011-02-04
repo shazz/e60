@@ -18,6 +18,7 @@
 
 /*---------- Structure Definitions ----------*/
 
+extern "C" {
 
 /**
  * Structure with fixed information of framebuffer
@@ -30,10 +31,7 @@
 #define DU	1
 
 //GC-FullUpdate(eFULL), GU-PartialUpdate(ePART), DU-PartialUpdate(ePART_SMOOTH), DU-PartialUpdate Async(ePART_FASTEST), GC-PartialUpdate(ePART_CLEAR) in order
-enum upd_type {eFULL , ePART, ePART_SMOOTH, ePART_FASTEST, ePART_CLEAR} upd_type_t; 
-
-typedef         __u8            uint8_t;
-typedef         __u16           uint16_t;
+enum upd_type {eFULL , ePART, ePART_SMOOTH, ePART_FASTEST, ePART_CLEAR} upd_type_t;
 
 struct image_update_data {
 	uint16_t x;//	screen offset
@@ -142,6 +140,8 @@ struct fb_area {
 
 
 //jw.choi 2009.10.16 #endif
+
+}
 
 #endif
 
