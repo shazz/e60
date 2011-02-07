@@ -12,10 +12,10 @@ STRIP=arm-linux-strip
 
 _OBJ = demo.o
 OBJ = $(patsubst %,%,$(_OBJ))
-LIBS = -L.. -lgnugl
+LIBS = -L../gnugl -lgnugl
 CPPFLAGS = -Wall -O6 -I..
 
-HEADERS=s3c_epd_userland.h ../gnugl.h
+HEADERS=s3c_epd_userland.h ../gnugl/gnugl.h
 
 %.o: %.cpp $(HEADERS)
 	$(CXX) -c -o $@ $< $(CPPFLAGS)
