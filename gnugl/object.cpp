@@ -129,6 +129,11 @@ void WOBJECT::init_PNG(WCONTROL *c)
       vertex[i].normv /= (double)vertex[i].fcount;
  }
 
+ void WOBJECT::set_texture(WTEXTUR *t)   
+ {
+	textur = *t;
+ }
+
 int WOBJECT::create(int typi,WMATRIX positioni,WTEXTUR *texturi)
  {
     int ret=1;

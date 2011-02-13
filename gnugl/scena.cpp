@@ -33,6 +33,7 @@
 #include "gnugl.h"
 
 void Scena::set_observer(WPOINT p) { c.obs=p; }
+WPOINT Scena::get_observer() { return c.obs; }
 void Scena::set_look(double fi,double theta) { c.look_fi=fi; c.look_theta=theta; }
 void Scena::set_zoom(double d) { c.zoom*=d; }
 void Scena::set_model(int m) { c.model=m; }

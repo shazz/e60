@@ -159,6 +159,7 @@ class WOBJECT
      int create(int typ,WMATRIX locate,WTEXTUR *txtr);
     void draw(WCONTROL*,ZBUFFER*);
     void project(WCONTROL*);
+    void set_texture(WTEXTUR *t); 
     void freeo();
      int alloc(int v,int f);
 
@@ -285,6 +286,7 @@ class Scena
      void set_window(int W,int H);
      void set_model(int);
      void set_observer(WPOINT);
+     WPOINT get_observer();
      void set_light_position(WPOINT);
      void set_light(double,double,double,double);
      void set_look(double fi,double theta); 
