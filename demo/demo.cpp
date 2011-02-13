@@ -252,21 +252,19 @@ echo 3 363 > /proc/audio_wm8960 Là le volume des deux voies sera mis à jour.
 	printf("Add objects\n");
 	obj_nb = sc1->add_object(TORUS,m,&t);
 	//sc1->fit();
-	sc1->set_zoom(0.60);
+	sc1->set_zoom(0.40);
 	
 	bool nostop = false;
 	bool isTouchingScreen = false;
-	int penStart = 0;
-	int penDistance = 0;
+	int penXStart = 0;
+	int penXDistance = 0;
+	int penYStart = 0;
+	int penYDistance = 0;	
 	
 	while(nostop == false)
 	{
 		// clear screen
-		sc1->clear(0xFFFFFF);
-		
-		// Compute position
-		sc1->rotate(WPOINT(100,100,0),10);
-		sc1->go();				
+		sc1->clear(0xFFFFFF);	
 		
 		// check pen
 		if (poll(ts, 1, 0)) // poll 10ms
@@ -282,8 +280,9 @@ echo 3 363 > /proc/audio_wm8960 Là le volume des deux voies sera mis à jour.
 						if(isTouchingScreen == false)
 						{						
 							isTouchingScreen = true;
-							penStart = pixel.x;
-							printf("Start : %d\n", penStart);
+							penXStart = pixel.x;
+							penYStart = pixel.y;
+							//printf("Start : %d\n", penXStart);
 						}					
 					}
 					else
@@ -291,8 +290,23 @@ echo 3 363 > /proc/audio_wm8960 Là le volume des deux voies sera mis à jour.
 						if(isTouchingScreen == true)
 						{
 							isTouchingScreen = false;
-							penDistance = abs(pixel.x - penStart);
-							printf("Distance drawn : %d\n", penDistance);
+							penXDistance = pixel.x - penXStart;
+							penYDistance = pixel.y - penYStart;
+							printf("Distance drawn in x: %d in y: %d\n", penXDistance, penYDistance);
+							
+							if( abs(penXDistance) + abs(penYDistance) < 10 )
+							{
+								
+							} 
+							else if(abs(penXDistance) > 5)
+							{
+								WPOINT observer = sc1->get_observer();
+								printf("Observer : (%f, %f, %f)\n", observer.x, observer.y, observer.z);
+								observer.x += penXDistance; 
+								observer.y -= penYDistance; 
+								sc1->set_observer(observer);
+								
+							}
 						}
 					}
 				}
@@ -354,6 +368,10 @@ echo 3 363 > /proc/audio_wm8960 Là le volume des deux voies sera mis à jour.
 		{
 			perror_exit ((char *)"read()");   
 		}
+		
+		// Compute new 3D position
+		sc1->rotate(WPOINT(100,100,0),10);
+		sc1->go();					
 		
 		// displaying on fb
 		//memcpy ( (void *) fbp, (const void *) fb, screensize );
