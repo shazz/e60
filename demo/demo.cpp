@@ -1,10 +1,11 @@
 /*
- * E60 donu demo using GnuGL (C) from Richard Gosiorovsky 
+ * E60 donut demo using GnuGL
  * code : shazz
+ * GnuGL (C) Richard Gosiorovsky 
  * 
- * thanks to Yoda222 for the db example
+ * thanks to Yoda222 for the fb & ts samples
  * 
- * 
+ * git@github.com:shazz/e60.git
  */
  
  //All you need to build 3D application 
@@ -13,7 +14,7 @@
 
  
 #include <stdio.h>
-#include "../gnugl.h"
+#include "gnugl.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -21,9 +22,11 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
+#include <poll.h>
 
 #include <linux/input.h>
 
+#include "ts.h"
 
 #include "s3c_epd_userland.h"
 
@@ -101,6 +104,15 @@ int main(void)
 	int fd, rd, size = sizeof (struct input_event);
 	char name[256] = "Unknown";
 
+	// touchscreen
+    struct pollfd ts[1];
+    pixel_node_t pixel;
+    TOUCH_TYPE tt = eHANWANG_6;
+
+	// dev audio
+	int fd_audio;
+
+	// fb controller
     struct epd_control_data data;
 
     data.x=0;
@@ -117,11 +129,62 @@ int main(void)
     data.update_only=0;
     data.type=ePART;
 
-	//Open Device
-	if ((fd = open ("/dev/input/event0", O_RDONLY | O_NONBLOCK)) == -1)
+/*
+
+echo [register] [value] > /proc/audio_wm8960 
+ 
+Ou register peut être : 
+- 2 : sortie gauche du casque 
+- 3 : sortie droite du casque 
+- 40 : enceinte gauche 
+- 41 : enceinte droite 
+ 
+[value] doit être un binaire transformé en décimal, comme ceci : 
+- bits 0 à 6 : volume, de 48 à 127 (décimal, = -73dB à +6dB), en dessous de 48 c'est considéré comme "mute" 
+- bit 7 : Left Output Zero Cross Enable, 0 = Change gain immediately, 1 = Change gain on zero cross only 
+- bit 8 : Output PGA Volume Update Writing a 1 to this bit will cause left and right output volumes to be updated 
+ 
+Je n'ai pas trop compris à quoi sert le bit 7, dans mes tests ça change pas grand chose, mais le bit 8 comme c'est expliqué ça update le volume des deux, par exemple : 
+echo 2 90 > /proc/audio_wm8960  Là le volume à gauche ne va pas encore changer. 
+echo 3 363 > /proc/audio_wm8960 Là le volume des deux voies sera mis à jour. 
+
+*/
+
+	// Open sound mixer device
+	if ((fd_audio = open ("/proc/audio_wm8960 ", O_RDWR|O_NOCTTY|O_NONBLOCK)) == -1)
+		printf ("This is not a valid audio device.\n");
+
+	// Open touchscreen device
+    ts[0].fd = open("/dev/input/s5p_tsp", O_RDWR|O_NOCTTY|O_NONBLOCK);
+    if (!ts[0].fd)
+    {
+        printf ("Error: open file\n");
+        return 1;
+    }
+    printf ("file open ok\n");
+
+    ts[0].events = POLLIN;
+    ts[0].revents = 0;	
+    
+    // Get information
+    if (ioctl (ts[0].fd, TSP_SET_TOUCHSCREEN, &tt))
+    {
+        printf ("Error setting touchscreen.\n");
+        return 2;
+    }
+
+    // Start parsing
+    if (ioctl (ts[0].fd, TSP_BEGIN_PARSER, 0))
+    {
+        printf ("Error start parsing.\n");
+        return 3;
+    }    
+
+	//Open keyboard Device
+	if ((fd = open ("/dev/input/event0", O_RDONLY | O_NOCTTY | O_NONBLOCK)) == -1)
 		printf ("This is not a vaild device.\n");
 		
-	//Print Device Name
+	//Print keyboard Device Name
 	ioctl (fd, EVIOCGNAME (sizeof (name)), name);
 	printf ("Reading From : %s\n", name);
 	
@@ -191,30 +254,58 @@ int main(void)
 	//sc1->fit();
 	sc1->set_zoom(0.60);
 	
-	bool nostop = 0;
+	bool nostop = false;
+	bool isTouchingScreen = false;
+	int penStart = 0;
+	int penDistance = 0;
 	
-	while(nostop == 0)
+	while(nostop == false)
 	{
 		// clear screen
 		sc1->clear(0xFFFFFF);
 		
 		// Compute position
 		sc1->rotate(WPOINT(100,100,0),10);
-		sc1->go();		
-				
-		// displaying on fb
-		//memcpy ( (void *) fbp, (const void *) fb, screensize );
-		int x,y;			
-		int counter = 0;
-		for (y = 0; y < 800; y++)
-		{
-			for (x = 0; x < 300; x++)
-			{
-				fbp[counter++] = fb[x][y];
-			}
-		}
+		sc1->go();				
 		
-		ioctl(fbfd, 0x4004405A, &data);
+		// check pen
+		if (poll(ts, 1, 0)) // poll 10ms
+        {
+            if(ts[0].revents & POLLIN)
+            {
+				while(read(ts[0].fd, &pixel, 16) != 0)
+				{
+					/*ssize_t readed = read(ts[0].fd, &pixel, 16); */
+					//printf("x:\t%i\ty:\t%i\tpression:\t%i\tereaser(wtf):\t%i\n", pixel.x, pixel.y, pixel.pr, pixel.eraser);
+					if(pixel.pr > 700)
+					{
+						if(isTouchingScreen == false)
+						{						
+							isTouchingScreen = true;
+							penStart = pixel.x;
+							printf("Start : %d\n", penStart);
+						}					
+					}
+					else
+					{
+						if(isTouchingScreen == true)
+						{
+							isTouchingScreen = false;
+							penDistance = abs(pixel.x - penStart);
+							printf("Distance drawn : %d\n", penDistance);
+						}
+					}
+				}
+            } 
+            else 
+            {
+                printf ("poll error.\n");
+            }
+        } 
+        else 
+        {
+            //printf ("timeout error.\n");
+        }		
 		
 		// check key
 		if (!(rd = read (fd, ev, size * 64)) < size)
@@ -225,7 +316,7 @@ int main(void)
 			{
 				if(keycode == 19) // press Prev button to exit
 				{
-					nostop = 1;
+					nostop = true;
 				}	
 				else if(keycode == 11 && ev[0].value == 1) // Next button should change the rendering
 				{
@@ -238,12 +329,24 @@ int main(void)
 					sc1->set_model(ZBF);					
 					obj_nb = sc1-> add_object(CUBE,m,&tex);	
 				}	
+				else if(keycode == 1 && ev[0].value == 1) // Vol up
+				{
+					printf ("Vol up\n");
+					char * audioParams = "40 363";
+					/*int wr = */write(  fd_audio, (void *) audioParams, strlen(audioParams) );
+				}	
+				else if(keycode == 9 && ev[0].value == 1) // Vol down
+				{
+					printf ("Vol down\n");
+				}								
 				else
 				{
+					/*
 					printf ("Key code [%d]\n", (keycode));
 					if(ev[0].value == 0) 		printf ("Key is released\n");
 					else if(ev[0].value == 1) 	printf ("Key is pressed\n");
-					else if(ev[0].value == 2) 	printf ("Key is still pressed\n");							
+					else if(ev[0].value == 2) 	printf ("Key is still pressed\n");		
+					*/					
 				}
 			}
 		}
@@ -251,14 +354,35 @@ int main(void)
 		{
 			perror_exit ((char *)"read()");   
 		}
+		
+		// displaying on fb
+		//memcpy ( (void *) fbp, (const void *) fb, screensize );
+		int x,y;			
+		int counter = 0;
+		for (y = 0; y < 800; y++)
+		{
+			for (x = 0; x < 300; x++)
+			{
+				fbp[counter++] = fb[x][y];
+			}
+		}
+		
+		ioctl(fbfd, 0x4004405A, &data);		
 			   
-
-			
 	}
 	
 	printf("Close link ot fb\n");
     munmap (fbp, screensize);
     close (fbfd);	
+    
+    // close the touch screen device
+    close (ts[0].fd);
+    
+    // close the keyboard device
+    close (fd);
+    
+    // close audio
+    close (fd_audio);
 
 	printf("Done.\n");
 
